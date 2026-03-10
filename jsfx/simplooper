@@ -1,0 +1,136 @@
+desc:Simplooper
+// Copyright 2026 James Teh
+// License: GNU General Public License version 2.0
+
+// Set a slider to 1 to trigger its action. This is ideal for triggering from a
+// MIDI button or pedal which sends 127 when pressed and 0 when released.
+slider1:0<0,1,1>Track1 Record
+slider2:0<0,1,1>Track1 Play/Stop
+slider3:0<0,1,1>Track2 Record
+slider4:0<0,1,1>Track2 Play/Stop
+slider5:0<0,1,1>Track3 Record
+slider6:0<0,1,1>Track3 Play/Stop
+slider7:0<0,1,1>Track4 Record
+slider8:0<0,1,1>Track4 Play/Stop
+slider9:0<0,1,1>Reset
+
+@init
+
+MAX_SAMPLES = 48000 * 20; // 20 seconds
+NUM_TRACKS = 4;
+
+STOPPED = 0;
+PLAYING = 1;
+RECORDING = 2;
+
+prevResetSlider = 0;
+
+memPos = 0;
+function allocateArray(size) local(origMemPos) (
+	origMemPos = memPos;
+	memPos += size;
+	origMemPos;
+);
+
+trackState = allocateArray(NUM_TRACKS);
+prevRecSlider = allocateArray(NUM_TRACKS);
+prevPlaySlider = allocateArray(NUM_TRACKS);
+bufL = allocateArray(NUM_TRACKS);
+bufR = allocateArray(NUM_TRACKS);
+
+t = 0;
+loop(NUM_TRACKS,
+	bufL[t] = allocateArray(MAX_SAMPLES);
+	bufR[t] = allocateArray(MAX_SAMPLES);
+	prevRecSlider[t] = 0;
+	prevPlaySlider[t] = 0;
+	t += 1;
+);
+
+function reset() (
+	t = 0;
+	loop(NUM_TRACKS,
+		memset(bufL[t],0,MAX_SAMPLES);
+		memset(bufR[t],0,MAX_SAMPLES);
+		trackState[t] = STOPPED;
+		t += 1;
+	);
+	loopLen = 0;
+	setLoopLen = 0;
+	loopPos = 0;
+);
+
+reset();
+
+@slider
+
+// Reset
+slider9 == 1 && prevResetSlider != 1 ? (
+	reset();
+);
+prevResetSlider = slider9;
+
+t = 0;
+loop(NUM_TRACKS,
+	// Record trigger
+	recSlider = slider(t * 2 + 1);
+	recSlider == 1 && prevRecSlider[t] != 1 ? (
+		trackState[t] == RECORDING && loopLen == 0 ? setLoopLen = 1;
+		trackState[t] = RECORDING;
+	);
+	prevRecSlider[t] = recSlider;
+
+	// Play toggle
+	playSlider = slider(t * 2 + 2);
+	playSlider == 1 && prevPlaySlider[t] != 1 ? (
+		trackState[t] == RECORDING && loopLen == 0 ? setLoopLen = 1;
+		trackState[t] = (trackState[t] == PLAYING ? STOPPED : PLAYING);
+	);
+	prevPlaySlider[t] = playSlider;
+
+	t += 1;
+);
+
+@sample
+
+// Detect first loop length
+loopLen == 0 && loopPos > 0  && (setLoopLen || loopPos == MAX_SAMPLES) ? (
+	loopLen = loopPos;
+	loopPos = 0;
+);
+
+// Playback
+isActive = 0;
+outL = 0;
+outR = 0;
+t = 0;
+loop(NUM_TRACKS,
+	trackState[t] != STOPPED ? (
+		isActive = 1;
+		outL += bufL[t][loopPos];
+		outR += bufR[t][loopPos];
+	);
+	t += 1;
+);
+
+// Record
+inL = spl0;
+inR = spl1;
+t = 0;
+loop(NUM_TRACKS,
+	trackState[t] == RECORDING ? (
+		bufL[t][loopPos] += inL;
+		bufR[t][loopPos] += inR;
+	);
+	t += 1;
+);
+
+// Advance loop position
+isActive ? (
+	loopPos += 1;
+	loopLen > 0 && loopPos >= loopLen ? loopPos = 0;
+);
+
+// Just output from the loop buffer. Don't pass input through.
+spl0 = outL;
+spl1 = outR;
