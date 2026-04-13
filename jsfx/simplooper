@@ -1,6 +1,7 @@
 desc:Simplooper
 // Copyright 2026 James Teh
 // License: GNU General Public License version 2.0
+options:maxmem=16000000
 
 // Set a slider to 1 to trigger its action. This is ideal for triggering from a
 // MIDI button or pedal which sends 127 when pressed and 0 when released.
@@ -16,7 +17,7 @@ slider9:0<0,1,1>Reset
 
 @init
 
-MAX_SAMPLES = 48000 * 20; // 20 seconds
+MAX_SAMPLES = 48000 * 40; // 40 seconds
 NUM_TRACKS = 4;
 
 STOPPED = 0;
