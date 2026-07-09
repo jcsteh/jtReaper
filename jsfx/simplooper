@@ -59,6 +59,7 @@ function reset() (
 	loopLen = 0;
 	setLoopLen = 0;
 	loopPos = 0;
+	shouldReset = 0;
 );
 
 reset();
@@ -67,7 +68,9 @@ reset();
 
 // Reset
 slider9 == 1 && prevResetSlider != 1 ? (
-	reset();
+	// Resetting here might race with the sample thread. Instead, signal the sample
+	// thread to reset.
+	shouldReset = 1;
 );
 prevResetSlider = slider9;
 
@@ -93,6 +96,8 @@ loop(NUM_TRACKS,
 );
 
 @sample
+
+shouldReset == 1 ? reset();
 
 // Detect first loop length
 loopLen == 0 && loopPos > 0  && (setLoopLen || loopPos == MAX_SAMPLES) ? (
